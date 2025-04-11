@@ -2,6 +2,9 @@ from bs4 import BeautifulSoup as bs
 import requests
 import re
 import pandas as pd
+import json
+import concurrent.futures
+import threading
 
 def crawl_allrecipes():
     url = 'https://www.allrecipes.com/recipes-a-z-6735880'
@@ -31,12 +34,6 @@ def crawl_allrecipes():
                 for a in a_tags:
                     f.write(a['href'] + "\n")
 
-# make the dataframe
-
-import requests
-from bs4 import BeautifulSoup as bs
-import pandas as pd
-
 def scrape_recipe(url):
     response = requests.get(url)
     soup = bs(response.content, 'html.parser')
@@ -62,8 +59,7 @@ def scrape_recipe(url):
 
 
     # Cooking time and servings
-    # Get Prep Time, Cook Time, Total Time, and Servings
-    prep_time = cook_time = total_time = servings = None
+    total_time = servings = None
     details_items = soup.select('div.mm-recipes-details__item')
     for item in details_items:
         label = item.find('div', class_='mm-recipes-details__label')
@@ -71,10 +67,6 @@ def scrape_recipe(url):
         if label and value:
             label_text = label.get_text(strip=True).lower()
             value_text = value.get_text(strip=True)
-            # if 'prep time' in label_text:
-            #     prep_time = value_text
-            # elif 'cook time' in label_text:
-            #     cook_time = value_text
             if 'total time' in label_text:
                 total_time = value_text
             elif 'servings' in label_text:
@@ -88,10 +80,25 @@ def scrape_recipe(url):
         'servings': servings
     }
 
-# Test it on your sample page
-url = "https://www.allrecipes.com/air-fryer-honey-mustard-salmon-bites-recipe-11680825"
-recipe_info = scrape_recipe(url)
 
-# Create DataFrame
-df = pd.DataFrame([recipe_info])
-print(df)
+def scrape_and_write(url):
+    result = scrape_recipe(url.strip())
+    with open("recipes_raw.txt", "a", encoding="utf-8") as f:
+        f.write(json.dumps(result, ensure_ascii=False) + "\n")
+
+def scrape_to_csv(num_threads):
+    with open("recipe_page_urls.txt", "r") as f:
+        urls = [line.strip() for line in f if line.strip()]
+
+    # Multithreaded scraping
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        executor.map(scrape_and_write, urls)
+
+    # create csv
+    with open("recipes_raw.txt", "r", encoding="utf-8") as f:
+        data = [json.loads(line) for line in f]
+
+    df = pd.DataFrame(data)
+    df.to_csv("recipes.csv", index=False)
+
+scrape_to_csv(15)
