@@ -92,7 +92,7 @@ def scrape_to_csv(num_threads):
 
     # Multithreaded scraping
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        executor.map(scrape_and_write, urls)
+        executor.map(scrape_and_write, urls[:5000])
 
     # create csv
     with open("recipes_raw.txt", "r", encoding="utf-8") as f:
@@ -101,4 +101,4 @@ def scrape_to_csv(num_threads):
     df = pd.DataFrame(data)
     df.to_csv("recipes.csv", index=False)
 
-scrape_to_csv(15)
+scrape_to_csv(10)
